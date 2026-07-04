@@ -38,7 +38,7 @@ sequenceDiagram
     participant Meta as Meta Cloud API
     participant Tunnel as Cloudflare Tunnel
     participant App as FastAPI Webhook Gateway
-    database DB as SQLite Database
+    participant DB as SQLite Database
     participant Agent as Gemini Agent (Planner)
     participant API as Third-Party APIs (Slack/Jira/Google)
 
