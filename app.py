@@ -78,9 +78,7 @@ async def process_webhook(request: Request, db: Session = Depends(get_db)):
         print("MARK READ")
         mark_read(msg_id)
         print("MARK READ DONE")
-        # Mark as read immediately to acknowledge
-        mark_read(msg_id)
-        
+                
         # Extract message body
         if "text" in message:
             text_body = message["text"]["body"].strip()

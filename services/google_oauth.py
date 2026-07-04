@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+# pyrefly: ignore [missing-import]
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -122,11 +123,10 @@ def get_user_credentials(phone_number: str) -> Credentials or None:
         if auth.google_token_expiry:
             creds.expiry = auth.google_token_expiry
             
-        if creds.expired or (auth.google_token_expiry and auth.google_token_expiry < datetime.datetime.utcnow()):
+        if creds.expired:
             logger.info(f"Refreshing expired Google credentials for user {phone_number}...")
             creds.refresh(Request())
-            
-            # Save updated values back to database (encrypted)
+
             auth.google_access_token = encrypt_data(creds.token)
             if creds.refresh_token:
                 auth.google_refresh_token = encrypt_data(creds.refresh_token)

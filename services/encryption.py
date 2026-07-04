@@ -1,5 +1,6 @@
 import os
 import logging
+# pyrefly: ignore [missing-import]
 from cryptography.fernet import Fernet
 from config import Config
 

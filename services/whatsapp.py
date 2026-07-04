@@ -32,6 +32,11 @@ def send_text(to: str, body: str) -> bool:
     }
 
     try:
+        print("=" * 60)
+        print("URL:", url)
+        print("HEADERS:", get_whatsapp_headers())
+        print("PAYLOAD:", payload)
+        print("=" * 60)
         response = requests.post(
             url,
             json=payload,
