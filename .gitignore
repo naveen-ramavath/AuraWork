@@ -1,0 +1,30 @@
+# Environment Variables
+.env
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local Database
+*.db
+sync_copilot.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS Files
+.DS_Store
+Thumbs.db
