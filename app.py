@@ -16,6 +16,10 @@ from tools.calendar import fetch_calendar_events
 from agent.planner import SyncCopilotAgent
 from scheduler.reminder_scheduler import start_scheduler
 
+print("=" * 60)
+print("SYNCCOPILOT APP STARTED")
+print("=" * 60)
+
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -49,6 +53,7 @@ def verify_webhook(
 print("************ POST /webhook HIT ************")
 @app.post("/webhook")
 async def process_webhook(request: Request, db: Session = Depends(get_db)):
+    print(">>> INSIDE process_webhook() <<<")
     """Receives inbound messages and events from Meta WhatsApp Cloud API."""
     try:
         body = await request.json()

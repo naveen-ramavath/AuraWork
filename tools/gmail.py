@@ -3,15 +3,22 @@ import logging
 from email.mime.text import MIMEText
 from googleapiclient.discovery import build
 from services.google_oauth import get_user_credentials
+import base64
+from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
 
-def get_gmail_service(phone_number: str):
-    """Initializes the Gmail API service using the user's Google credentials."""
+def get_gmail_service(phone_number):
+    print("Creating Gmail service for:", phone_number)
+
     creds = get_user_credentials(phone_number)
+
+    print("Credentials returned:", creds)
+
     if not creds:
-        logger.warning(f"No Google credentials found for user {phone_number}.")
+        print("NO CREDS")
         return None
+
     return build("gmail", "v1", credentials=creds)
 
 def fetch_unread_emails(phone_number: str, max_results: int = 5) -> list:
@@ -68,17 +75,56 @@ def create_gmail_draft(phone_number: str, to_email: str, subject: str, body: str
         return False
 
     try:
-        # Build MIME Message
         message = MIMEText(body)
         message["to"] = to_email
         message["subject"] = subject
-        
-        # Encode to Base64 Urlsafe
-        raw_msg = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
-        draft_body = {"message": {"raw": raw_msg}}
-        
-        service.users().drafts().create(userId="me", body=draft_body).execute()
+
+        raw_msg = base64.urlsafe_b64encode(
+            message.as_bytes()
+        ).decode("utf-8")
+
+        draft_body = {
+            "message": {
+                "raw": raw_msg
+            }
+        }
+
+        service.users().drafts().create(
+            userId="me",
+            body=draft_body
+        ).execute()
+
         return True
+
     except Exception as e:
         logger.error(f"Error creating Gmail draft for user {phone_number}: {e}")
+        return False
+
+
+
+
+def send_gmail(phone_number: str, to_email: str, subject: str, body: str) -> bool:
+    """Sends an email immediately."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return False
+
+    try:
+        message = MIMEText(body)
+        message["to"] = to_email
+        message["subject"] = subject
+
+        raw_msg = base64.urlsafe_b64encode(
+            message.as_bytes()
+        ).decode("utf-8")
+
+        service.users().messages().send(
+            userId="me",
+            body={"raw": raw_msg}
+        ).execute()
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error sending Gmail for user {phone_number}: {e}")
         return False

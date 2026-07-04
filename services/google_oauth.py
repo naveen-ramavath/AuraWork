@@ -1,3 +1,4 @@
+from google import auth
 import datetime
 import json
 import logging
@@ -5,7 +6,7 @@ import logging
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import Session
 
 from config import Config
 from database.models import User, UserAuth
@@ -96,46 +97,64 @@ def handle_oauth_callback(code: str, state_phone: str) -> bool:
     finally:
         db.close()
 
-def get_user_credentials(phone_number: str) -> Credentials or None:
-    """Retrieves valid Google Credentials object for user, decrypting tokens and auto-refreshing if needed."""
+def get_user_credentials(phone_number: str):
     db = SessionLocal()
+
     try:
+        print("=" * 60)
+        print("PHONE:", phone_number)
+
         user = db.query(User).filter(User.phone_number == phone_number).first()
-        if not user or not user.auth:
+
+        print("USER:", user)
+
+        if not user:
+            print("USER NOT FOUND")
             return None
-            
+
+        print("USER ID:", user.id)
+        print("AUTH:", user.auth)
+
+        if not user.auth:
+            print("NO AUTH OBJECT")
+            return None
+
         auth = user.auth
-        if not auth.google_access_token:
-            return None
-            
-        # Decrypt tokens to reconstruct Google Credentials object
+
+        print("ACCESS TOKEN EXISTS:", bool(auth.google_access_token))
+        print("REFRESH TOKEN EXISTS:", bool(auth.google_refresh_token))
+
+        access = decrypt_data(auth.google_access_token)
+        refresh = decrypt_data(auth.google_refresh_token)
+
+        print("DECRYPTED ACCESS:", access[:20] if access else None)
+        print("DECRYPTED REFRESH:", refresh[:20] if refresh else None)
+
         creds = Credentials(
-            token=decrypt_data(auth.google_access_token),
-            refresh_token=decrypt_data(auth.google_refresh_token),
+            token=access,
+            refresh_token=refresh,
             token_uri="https://oauth2.googleapis.com/token",
             client_id=Config.GOOGLE_CLIENT_ID,
             client_secret=Config.GOOGLE_CLIENT_SECRET,
             scopes=SCOPES
         )
-        
-        # Check if credentials need refresh
-        # Set dummy expiry to compare
+
         if auth.google_token_expiry:
             creds.expiry = auth.google_token_expiry
-            
-        if creds.expired:
-            logger.info(f"Refreshing expired Google credentials for user {phone_number}...")
-            creds.refresh(Request())
 
-            auth.google_access_token = encrypt_data(creds.token)
-            if creds.refresh_token:
-                auth.google_refresh_token = encrypt_data(creds.refresh_token)
-            auth.google_token_expiry = creds.expiry
-            db.commit()
-            
+        print("Expired:", creds.expired)
+
+        if creds.expired:
+            print("Refreshing token...")
+            creds.refresh(Request())
+            print("Refresh successful")
+
+        print("Returning credentials")
         return creds
+
     except Exception as e:
-        logger.exception(f"Error loading/refreshing credentials for {phone_number}: {e}")
+        logger.exception(e)
         return None
+
     finally:
         db.close()
