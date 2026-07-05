@@ -16,6 +16,9 @@
 
 Instead of jumping between multiple apps, desktop portals, or notifications on the go, AuraWork lets employees manage tasks, log work hours, view schedules, draft emails, and post updates directly from their mobile WhatsApp chat using natural language or structured commands.
 
+> [!NOTE]
+> **Integration Status**: Both **Gmail** (reading, drafting, and sending emails) and **Google Calendar** (fetching upcoming schedules and events) integrations are now fully implemented and working successfully!
+
 ---
 
 ## 🚀 Why AuraWork? (The Value Proposition)
