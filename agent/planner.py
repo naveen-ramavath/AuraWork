@@ -83,22 +83,49 @@ class SyncCopilotAgent:
             return json.dumps({"error": "No unread emails found or user not authenticated. Tell the user to run /login."})
         return json.dumps(emails)
 
-    def draft_email(self, to_email: str, subject: str, body: str) -> str:
-        """Creates an email draft in the user's Gmail account. It does NOT send the email immediately.
+    def send_email(self, to_email: str, subject: str, body: str) -> str:
+        logger.info(f"Tool Executed: send_email to {to_email}")
 
-        Args:
-            to_email (str): Recipient email address.
-            subject (str): Email subject line.
-            body (str): Email body text.
+        success = gmail_tool.send_gmail_email(
+            self.phone_number,
+            to_email,
+            subject,
+            body
+        )
 
-        Returns:
-            str: Status message indicating success or failure.
-        """
-        logger.info(f"Tool Executed: draft_email to {to_email}")
-        success = gmail_tool.create_gmail_draft(self.phone_number, to_email, subject, body)
         if success:
-            return json.dumps({"status": "success", "message": f"Draft successfully created for {to_email}."})
-        return json.dumps({"status": "error", "message": "Failed to create email draft."})
+            return json.dumps({
+                "status": "success",
+                "message": f"Email sent successfully to {to_email}."
+            })
+
+        return json.dumps({
+            "status": "error",
+            "message": "Failed to send email."
+        })
+
+    def draft_email(self, to_email: str, subject: str, body: str) -> str:
+        """Creates an email draft."""
+
+        logger.info(f"Tool Executed: draft_email to {to_email}")
+
+        success = gmail_tool.create_gmail_draft(
+            self.phone_number,
+            to_email,
+            subject,
+            body
+        )
+
+        if success:
+            return json.dumps({
+                "status": "success",
+                "message": f"Draft created successfully for {to_email}."
+            })
+
+        return json.dumps({
+            "status": "error",
+            "message": "Failed to create draft."
+        })
 
     def post_slack_message(self, channel: str, text: str) -> str:
         """Posts a message to a specific Slack channel or team DM.
@@ -196,6 +223,8 @@ class SyncCopilotAgent:
             "2. Never fabricate emails, tickets, or schedules. If a tool returns no data, explain that clearly.\n"
             "3. If a tool fails because Google credentials are missing, ask the user to type `/login` to authorize their account.\n"
             "4. Keep your replies concise, friendly, and structured using WhatsApp markdown compatibility (bold, lists)."
+            "5. If the user asks to send an email, ALWAYS use send_email.\n"
+            "6. Only use draft_email if the user explicitly asks to create a draft."
         )
 
         # Register tools
@@ -204,6 +233,7 @@ class SyncCopilotAgent:
             self.fetch_calendar_schedule,
             self.create_meeting,
             self.fetch_unread_emails,
+            self.send_email,
             self.draft_email,
             self.post_slack_message,
             self.fetch_slack_mentions,
