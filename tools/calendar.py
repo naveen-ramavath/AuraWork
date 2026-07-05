@@ -14,14 +14,19 @@ def get_calendar_service(phone_number: str):
     return build("calendar", "v3", credentials=creds)
 
 def fetch_calendar_events(phone_number: str, limit: int = 5) -> list:
-    """Fetches upcoming calendar events for the user starting from now."""
     service = get_calendar_service(phone_number)
+
+    print("=" * 50)
+    print("PHONE:", phone_number)
+    print("SERVICE:", service)
+
     if not service:
         return []
 
     try:
-        now = datetime.datetime.utcnow().isoformat() + "Z"  # 'Z' indicates UTC time
-        
+        now = datetime.datetime.utcnow().isoformat() + "Z"
+        print("NOW:", now)
+
         events_result = service.events().list(
             calendarId="primary",
             timeMin=now,
@@ -29,8 +34,13 @@ def fetch_calendar_events(phone_number: str, limit: int = 5) -> list:
             singleEvents=True,
             orderBy="startTime"
         ).execute()
-        
+
+        print("EVENT RESULT:")
+        print(events_result)
+
         events = events_result.get("items", [])
+        print("TOTAL EVENTS:", len(events))
+
         event_list = []
         
         for event in events:
