@@ -1,10 +1,11 @@
 import json
 import logging
 import datetime
-from sqlalchemy.orm import Session
 import google.generativeai as genai
 from google.generativeai.types import GenerateContentResponse
-
+# pyrefly: ignore [missing-import]
+from sqlalchemy.orm import Session
+from ai.router import AIRouter
 from config import Config
 import tools.slack as slack_tool
 import tools.jira as jira_tool
@@ -243,58 +244,14 @@ class SyncCopilotAgent:
         ]
 
         try:
-            model = genai.GenerativeModel(
-                model_name="gemini-2.5-flash",
+            router = AIRouter()
+
+            return router.generate(
+                user_message=user_message,
                 tools=tool_list,
-                system_instruction=system_instruction
+                system_instruction=system_instruction,
             )
-            
-            # Start a chat session
-            chat = model.start_chat()
-            
-            # Send message to model
-            response = chat.send_message(user_message)
-            
-            # Manual function-calling execution loop
-            loop_limit = 5
-            for _ in range(loop_limit):
-                # Check if the model wants to call a tool by examining candidate parts
-                function_calls = []
-                if response.candidates and response.candidates[0].content:
-                    for part in response.candidates[0].content.parts:
-                        if part.function_call and part.function_call.name:
-                            function_calls.append(part.function_call)
-                
-                if not function_calls:
-                    break
-                    
-                tool_responses = []
-                for call in function_calls:
-                    tool_name = call.name
-                    tool_args = dict(call.args)
-                    
-                    logger.info(f"Model requested tool: {tool_name} with args: {tool_args}")
-                    
-                    # Execute tool mapping
-                    try:
-                        tool_func = getattr(self, tool_name)
-                        result = tool_func(**tool_args)
-                    except Exception as err:
-                        logger.error(f"Error running tool {tool_name}: {err}")
-                        result = json.dumps({"status": "error", "message": str(err)})
-                        
-                    tool_responses.append({
-                        "function_response": {
-                            "name": tool_name,
-                            "response": {"result": result}
-                        }
-                    })
-                
-                # Send tool executions back to model
-                response = chat.send_message(tool_responses)
-            
-            return response.text
-            
+
         except Exception as e:
             logger.exception(f"Error in SyncCopilotAgent run loop: {e}")
             return f"❌ Sorry, I encountered an internal error trying to process that: {str(e)}"
