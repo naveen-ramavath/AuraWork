@@ -196,5 +196,30 @@ Type these directly in your WhatsApp chat window to check configuration status:
 Because AuraWork runs an **Agentic execution loop** with Gemini 2.5 Flash, you can chat with it conversationally:
 *   *"Do I have any meetings today?"* (Invokes Google Calendar)
 *   *"Log 2 hours on issue project-102 and comment 'reviewed code'."* (Invokes Jira)
-*   *"Send an email to boss@company.com with the subject 'Daily Report' saying 'Everything looks good'."* (Invokes Gmail API)
 *   *"Ask the engineering channel on Slack if the build is ready."* (Invokes Slack)
+*   *"Generate a digest of my inbox"* (Invokes Gmail Inbox Digest)
+*   *"Read email 2"* (Invokes Complete Email MIME parser)
+*   *"Search my emails for 'invoice'"* (Invokes Query Search tool)
+*   *"Reply to email 1 saying 'Thanks, I will take a look!'"* (Invokes Threaded Reply)
+*   *"Forward email 4 to partner@company.com"* (Invokes Attachment forwarding)
+*   *"Mark email 3 as read"* (Invokes Label modify)
+*   *"Star email 1"* (Invokes Starring tool)
+*   *"Delete email 5"* (Invokes Gmail Trash endpoint)
+*   *"Download attachments from email 3"* (Invokes file attachment download/serve)
+
+---
+
+## 📧 Advanced AI Email Assistant (Gmail Integration)
+
+AuraWork features a complete, production-grade AI Email Assistant integrated directly into its planner and LLM schemas. It implements 10 advanced email management features following SOLID design principles:
+
+1. **Read Complete Email**: Recursively parses complex MIME structures (plain text, HTML, nested multiparts) and sanitizes body content by stripping styles and scripts.
+2. **Search Emails**: Queries the Gmail search index using Google's native advanced operators (`from:`, `is:unread`, `subject:`).
+3. **Threaded Reply**: Sends replies inside the same conversation thread by correctly inserting RFC822 `In-Reply-To`, `References`, and subject headers.
+4. **Forward Email**: Recomposes email content, preserves sender headers, and downloads then attaches original binary files for forwarding.
+5. **Mark as Read**: Automatically strips the `UNREAD` label from messages.
+6. **Mark as Unread**: Re-applies the `UNREAD` label to any message.
+7. **Star/Unstar Email**: Toggles the `STARRED` label to flag key emails.
+8. **Delete Email**: Safely moves messages to the Gmail trash (`trash` API) rather than performing irreversible deletions.
+9. **Get File Attachments**: Downloads mail attachments to a local workspace folder served via FastAPI's `StaticFiles` at `/static/attachments/{file_name}` for user download.
+10. **Automatic Inbox Digest**: Bulk-fetches all unread messages and summarizes them together in a single request, avoiding slow, sequential execution.
