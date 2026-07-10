@@ -294,3 +294,90 @@ def search_gmail_emails(phone_number: str, query: str, max_results: int = 5) -> 
     except Exception as e:
         logger.error(f"Error searching Gmail for user {phone_number} with query '{query}': {e}")
         return []
+
+
+from email.mime.multipart import MIMEMultipart
+
+def reply_gmail_email(phone_number: str, reply_body: str, message_id: str = None, email_index: int = None) -> bool:
+    """Replies to a specific email in the same thread using proper In-Reply-To and References headers."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return False
+
+    try:
+        target_id = message_id
+        if not target_id and email_index is not None:
+            results = service.users().messages().list(
+                userId="me", maxResults=email_index
+            ).execute()
+            messages = results.get("messages", [])
+            if len(messages) >= email_index:
+                target_id = messages[email_index - 1]["id"]
+            else:
+                logger.error(f"Email at index {email_index} not found for replying.")
+                return False
+
+        if not target_id:
+            logger.error("Must provide either message_id or email_index to reply.")
+            return False
+
+        orig_msg = service.users().messages().get(
+            userId="me", id=target_id, format="full"
+        ).execute()
+
+        thread_id = orig_msg.get("threadId")
+        payload = orig_msg.get("payload", {})
+        headers = payload.get("headers", [])
+
+        orig_message_id = None
+        orig_subject = ""
+        orig_from = ""
+        orig_references = ""
+
+        for header in headers:
+            name = header["name"].lower()
+            if name == "message-id":
+                orig_message_id = header["value"]
+            elif name == "subject":
+                orig_subject = header["value"]
+            elif name == "from":
+                orig_from = header["value"]
+            elif name == "references":
+                orig_references = header["value"]
+
+        if orig_subject and not orig_subject.lower().startswith("re:"):
+            subject = "Re: " + orig_subject
+        else:
+            subject = orig_subject
+
+        to_email = orig_from
+
+        message = MIMEMultipart()
+        message["to"] = to_email
+        message["subject"] = subject
+
+        if orig_message_id:
+            message["In-Reply-To"] = orig_message_id
+            if orig_references:
+                message["References"] = f"{orig_references} {orig_message_id}"
+            else:
+                message["References"] = orig_message_id
+
+        message.attach(MIMEText(reply_body, "plain"))
+
+        raw_msg = base64.urlsafe_b64encode(
+            message.as_bytes()
+        ).decode("utf-8")
+
+        service.users().messages().send(
+            userId="me",
+            body={
+                "raw": raw_msg,
+                "threadId": thread_id
+            }
+        ).execute()
+
+        return True
+    except Exception as e:
+        logger.error(f"Error replying to Gmail message: {e}")
+        return False

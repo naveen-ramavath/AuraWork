@@ -128,6 +128,31 @@ GROQ_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "reply_to_email",
+            "description": "Replies to a specific email inside the same email thread using threadId and messageId references.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reply_body": {
+                        "type": "string",
+                        "description": "The body text of the reply."
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "The unique ID of the email being replied to. Optional if email_index is given."
+                    },
+                    "email_index": {
+                        "type": "integer",
+                        "description": "The 1-based index of the email in the inbox list. Optional if message_id is given."
+                    }
+                },
+                "required": ["reply_body"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "send_email",
             "description": "Sends an email immediately.",
             "parameters": {

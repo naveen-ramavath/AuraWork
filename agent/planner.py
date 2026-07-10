@@ -114,6 +114,23 @@ class SyncCopilotAgent:
         emails = gmail_tool.search_gmail_emails(self.phone_number, query, limit)
         return json.dumps(emails)
 
+    def reply_to_email(self, reply_body: str, message_id: str = None, email_index: int = None) -> str:
+        """Replies to a specific email inside the same email thread using threadId and messageId references.
+
+        Args:
+            reply_body (str): The body text of the reply.
+            message_id (str): The unique ID of the email being replied to. Optional if email_index is given.
+            email_index (int): The 1-based index of the email in the inbox list. Optional if message_id is given.
+
+        Returns:
+            str: JSON string indicating success or error.
+        """
+        logger.info(f"Tool Executed: reply_to_email for {self.phone_number} (id: {message_id}, index: {email_index})")
+        success = gmail_tool.reply_gmail_email(self.phone_number, reply_body, message_id, email_index)
+        if success:
+            return json.dumps({"status": "success", "message": "Reply sent successfully."})
+        return json.dumps({"status": "error", "message": "Failed to send reply."})
+
     def send_email(self, to_email: str, subject: str, body: str) -> str:
         logger.info(f"Tool Executed: send_email to {to_email}")
 
@@ -266,6 +283,7 @@ class SyncCopilotAgent:
             self.fetch_unread_emails,
             self.read_email,
             self.search_emails,
+            self.reply_to_email,
             self.send_email,
             self.draft_email,
             self.post_slack_message,
