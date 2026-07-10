@@ -107,6 +107,27 @@ GROQ_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "search_emails",
+            "description": "Searches the user's Gmail emails using standard Gmail search syntax (e.g. from:Microsoft, subject:internship, is:unread).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query parameter using Gmail Query Syntax."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of search results to return. Defaults to 5."
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "send_email",
             "description": "Sends an email immediately.",
             "parameters": {

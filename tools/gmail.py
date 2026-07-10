@@ -241,3 +241,56 @@ def read_gmail_email(phone_number: str, message_id: str = None, email_index: int
     except Exception as e:
         logger.error(f"Error reading Gmail message: {e}")
         return {"error": str(e)}
+
+
+def search_gmail_emails(phone_number: str, query: str, max_results: int = 5) -> list:
+    """Searches the user's Gmail using Gmail Query Syntax and returns metadata list."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return []
+
+    try:
+        results = service.users().messages().list(
+            userId="me", q=query, maxResults=max_results
+        ).execute()
+
+        messages = results.get("messages", [])
+        email_list = []
+
+        for msg in messages:
+            msg_id = msg["id"]
+            thread_id = msg["threadId"]
+
+            msg_details = service.users().messages().get(
+                userId="me", id=msg_id, format="metadata",
+                metadataHeaders=["From", "Subject", "Date"]
+            ).execute()
+
+            headers = msg_details.get("payload", {}).get("headers", [])
+            subject = "No Subject"
+            sender = "Unknown Sender"
+            date = ""
+
+            for header in headers:
+                if header["name"] == "Subject":
+                    subject = header["value"]
+                elif header["name"] == "From":
+                    sender = header["value"]
+                elif header["name"] == "Date":
+                    date = header["value"]
+
+            snippet = msg_details.get("snippet", "")
+
+            email_list.append({
+                "id": msg_id,
+                "threadId": thread_id,
+                "sender": sender,
+                "subject": subject,
+                "snippet": snippet,
+                "date": date
+            })
+
+        return email_list
+    except Exception as e:
+        logger.error(f"Error searching Gmail for user {phone_number} with query '{query}': {e}")
+        return []

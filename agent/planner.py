@@ -100,6 +100,20 @@ class SyncCopilotAgent:
         email_data = gmail_tool.read_gmail_email(self.phone_number, message_id, email_index)
         return json.dumps(email_data)
 
+    def search_emails(self, query: str, limit: int = 5) -> str:
+        """Searches the user's Gmail emails using standard Gmail search syntax (e.g. from:Microsoft, subject:internship, is:unread).
+
+        Args:
+            query (str): The search query parameter.
+            limit (int): Maximum number of search results to return. Defaults to 5.
+
+        Returns:
+            str: JSON string containing a list of matching emails or error.
+        """
+        logger.info(f"Tool Executed: search_emails for {self.phone_number} (query: {query}, limit: {limit})")
+        emails = gmail_tool.search_gmail_emails(self.phone_number, query, limit)
+        return json.dumps(emails)
+
     def send_email(self, to_email: str, subject: str, body: str) -> str:
         logger.info(f"Tool Executed: send_email to {to_email}")
 
@@ -251,6 +265,7 @@ class SyncCopilotAgent:
             self.create_meeting,
             self.fetch_unread_emails,
             self.read_email,
+            self.search_emails,
             self.send_email,
             self.draft_email,
             self.post_slack_message,
