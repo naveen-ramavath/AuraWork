@@ -26,6 +26,11 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SyncCopilot AI Webhook Gateway")
 
+import os
+from fastapi.staticfiles import StaticFiles
+os.makedirs("static/attachments", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 @app.on_event("startup")
 def on_startup():
     """Initializes the database tables and launches the background scheduler."""

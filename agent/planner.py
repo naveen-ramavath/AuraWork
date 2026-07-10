@@ -214,6 +214,20 @@ class SyncCopilotAgent:
             return json.dumps({"status": "success", "message": "Email moved to trash successfully."})
         return json.dumps({"status": "error", "message": "Failed to delete email."})
 
+    def get_attachments(self, message_id: str = None, email_index: int = None) -> str:
+        """Downloads file attachments of a specific email to a temporary directory and returns metadata.
+
+        Args:
+            message_id (str): The unique ID of the email. Optional if email_index is given.
+            email_index (int): The 1-based index of the email in the inbox list. Optional if message_id is given.
+
+        Returns:
+            str: JSON string containing a list of attachments details (filename, size_bytes, media_url).
+        """
+        logger.info(f"Tool Executed: get_attachments for {self.phone_number} (id: {message_id}, index: {email_index})")
+        attachments = gmail_tool.get_gmail_attachments(self.phone_number, message_id, email_index)
+        return json.dumps(attachments)
+
     def send_email(self, to_email: str, subject: str, body: str) -> str:
         logger.info(f"Tool Executed: send_email to {to_email}")
 
@@ -372,6 +386,7 @@ class SyncCopilotAgent:
             self.mark_as_unread,
             self.star_email,
             self.delete_email,
+            self.get_attachments,
             self.send_email,
             self.draft_email,
             self.post_slack_message,

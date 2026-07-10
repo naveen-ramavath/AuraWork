@@ -266,6 +266,27 @@ GROQ_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "get_attachments",
+            "description": "Downloads file attachments of a specific email to a temporary directory and returns metadata.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "The unique ID of the email. Optional if email_index is given."
+                    },
+                    "email_index": {
+                        "type": "integer",
+                        "description": "The 1-based index of the email in the inbox list. Optional if message_id is given."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "send_email",
             "description": "Sends an email immediately.",
             "parameters": {

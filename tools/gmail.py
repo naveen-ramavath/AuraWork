@@ -645,3 +645,79 @@ def delete_gmail_email(phone_number: str, message_id: str = None, email_index: i
     except Exception as e:
         logger.error(f"Error trashing/deleting Gmail message: {e}")
         return False
+
+
+def get_gmail_attachments(phone_number: str, message_id: str = None, email_index: int = None) -> list:
+    """Downloads attachments of a specific email, saves them to a static directory, and returns their details."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return []
+
+    try:
+        target_id = message_id
+        if not target_id and email_index is not None:
+            results = service.users().messages().list(
+                userId="me", maxResults=email_index
+            ).execute()
+            messages = results.get("messages", [])
+            if len(messages) >= email_index:
+                target_id = messages[email_index - 1]["id"]
+            else:
+                logger.error(f"Email at index {email_index} not found for attachments.")
+                return []
+
+        if not target_id:
+            logger.error("Must provide either message_id or email_index to get attachments.")
+            return []
+
+        msg = service.users().messages().get(userId="me", id=target_id, format="full").execute()
+        payload = msg.get("payload", {})
+
+        attachments = []
+        static_dir = os.path.join(os.getcwd(), "static", "attachments")
+        os.makedirs(static_dir, exist_ok=True)
+
+        from config import Config
+        base_url = Config.GOOGLE_REDIRECT_URI.replace("/auth/callback", "")
+
+        def download_parts(parts):
+            for part in parts:
+                filename = part.get("filename")
+                body = part.get("body", {})
+                attachment_id = body.get("attachmentId")
+
+                if filename and attachment_id:
+                    try:
+                        att_res = service.users().messages().attachments().get(
+                            userId="me", messageId=target_id, id=attachment_id
+                        ).execute()
+                        att_data = base64.urlsafe_b64decode(att_res.get("data", "").encode("UTF-8"))
+
+                        # Generate a safe file name or prefix to avoid collision
+                        safe_filename = f"{target_id}_{filename}"
+                        safe_filename = "".join(c for c in safe_filename if c.isalnum() or c in "._-")
+
+                        file_path = os.path.join(static_dir, safe_filename)
+                        with open(file_path, "wb") as f:
+                            f.write(att_data)
+
+                        attachments.append({
+                            "filename": filename,
+                            "size_bytes": len(att_data),
+                            "media_url": f"{base_url}/static/attachments/{safe_filename}"
+                        })
+                        logger.info(f"Downloaded attachment: {filename} to {file_path}")
+                    except Exception as ex:
+                        logger.error(f"Error downloading attachment {filename}: {ex}")
+
+                nested_parts = part.get("parts")
+                if nested_parts:
+                    download_parts(nested_parts)
+
+        if "parts" in payload:
+            download_parts(payload["parts"])
+
+        return attachments
+    except Exception as e:
+        logger.error(f"Error getting attachments: {e}")
+        return []
