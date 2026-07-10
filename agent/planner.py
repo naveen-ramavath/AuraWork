@@ -228,6 +228,19 @@ class SyncCopilotAgent:
         attachments = gmail_tool.get_gmail_attachments(self.phone_number, message_id, email_index)
         return json.dumps(attachments)
 
+    def generate_inbox_digest(self, max_results: int = 5) -> str:
+        """Fetches all unread emails, reads their contents, and generates a structured digest of unread emails.
+
+        Args:
+            max_results (int): The maximum number of unread emails to summarize. Defaults to 5.
+
+        Returns:
+            str: JSON string containing list of unread email details (sender, subject, date, body snippet) for digest generation.
+        """
+        logger.info(f"Tool Executed: generate_inbox_digest for {self.phone_number} (limit: {max_results})")
+        digest_data = gmail_tool.get_unread_emails_digest_data(self.phone_number, max_results)
+        return json.dumps(digest_data)
+
     def send_email(self, to_email: str, subject: str, body: str) -> str:
         logger.info(f"Tool Executed: send_email to {to_email}")
 
@@ -387,6 +400,7 @@ class SyncCopilotAgent:
             self.star_email,
             self.delete_email,
             self.get_attachments,
+            self.generate_inbox_digest,
             self.send_email,
             self.draft_email,
             self.post_slack_message,

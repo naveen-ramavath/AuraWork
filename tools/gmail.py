@@ -721,3 +721,64 @@ def get_gmail_attachments(phone_number: str, message_id: str = None, email_index
     except Exception as e:
         logger.error(f"Error getting attachments: {e}")
         return []
+
+
+def get_unread_emails_digest_data(phone_number: str, max_results: int = 5) -> list:
+    """Fetches full content of all unread emails for generating a digest."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return []
+
+    try:
+        results = service.users().messages().list(
+            userId="me", q="is:unread label:INBOX", maxResults=max_results
+        ).execute()
+
+        messages = results.get("messages", [])
+        digest_data = []
+
+        for msg in messages:
+            msg_id = msg["id"]
+            msg_details = service.users().messages().get(
+                userId="me", id=msg_id, format="full"
+            ).execute()
+
+            payload = msg_details.get("payload", {})
+            headers = payload.get("headers", [])
+
+            subject = "No Subject"
+            sender = "Unknown Sender"
+            date = ""
+
+            for header in headers:
+                name = header["name"].lower()
+                if name == "subject":
+                    subject = header["value"]
+                elif name == "from":
+                    sender = header["value"]
+                elif name == "date":
+                    date = header["value"]
+
+            # Try to get the body
+            body = parse_message_payload(payload)
+            if not body:
+                body_data = payload.get("body", {}).get("data", "")
+                if body_data:
+                    body = base64.urlsafe_b64decode(body_data.encode("UTF-8")).decode("utf-8", errors="replace")
+
+            if body:
+                body = clean_html(body)
+            else:
+                body = msg_details.get("snippet", "")
+
+            digest_data.append({
+                "sender": sender,
+                "subject": subject,
+                "date": date,
+                "body": body[:500]  # First 500 characters of clean body is plenty for a digest summary
+            })
+
+        return digest_data
+    except Exception as e:
+        logger.error(f"Error fetching email digest data: {e}")
+        return []

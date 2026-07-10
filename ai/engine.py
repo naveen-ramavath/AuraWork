@@ -287,6 +287,23 @@ GROQ_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "generate_inbox_digest",
+            "description": "Fetches all unread emails, reads their contents, and generates a structured digest of unread emails.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_results": {
+                        "type": "integer",
+                        "description": "The maximum number of unread emails to summarize. Defaults to 5."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "send_email",
             "description": "Sends an email immediately.",
             "parameters": {
