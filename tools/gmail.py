@@ -101,16 +101,44 @@ def create_gmail_draft(phone_number: str, to_email: str, subject: str, body: str
 
 
 
-def send_gmail_email(phone_number: str, to_email: str, subject: str, body: str) -> bool:
-    """Sends an email immediately."""
+import os
+from email.mime.base import MIMEBase
+from email import encoders
+
+def send_gmail_email(phone_number: str, to_email: str, subject: str, body: str, attachments: list = None) -> bool:
+    """Sends an email immediately, optionally including local file attachments."""
     service = get_gmail_service(phone_number)
     if not service:
         return False
 
     try:
-        message = MIMEText(body)
-        message["to"] = to_email
-        message["subject"] = subject
+        if attachments:
+            message = MIMEMultipart()
+            message["to"] = to_email
+            message["subject"] = subject
+            message.attach(MIMEText(body, "plain"))
+            
+            for att in attachments:
+                path = att.get("path")
+                filename = att.get("filename")
+                mime_type = att.get("mime_type", "application/octet-stream")
+                
+                if path and os.path.exists(path):
+                    with open(path, "rb") as f:
+                        part_data = f.read()
+                    
+                    mime_part = MIMEBase(*mime_type.split("/"))
+                    mime_part.set_payload(part_data)
+                    encoders.encode_base64(mime_part)
+                    mime_part.add_header(
+                        "Content-Disposition",
+                        f"attachment; filename={filename}"
+                    )
+                    message.attach(mime_part)
+        else:
+            message = MIMEText(body)
+            message["to"] = to_email
+            message["subject"] = subject
 
         raw_msg = base64.urlsafe_b64encode(
             message.as_bytes()
@@ -298,8 +326,8 @@ def search_gmail_emails(phone_number: str, query: str, max_results: int = 5) -> 
 
 from email.mime.multipart import MIMEMultipart
 
-def reply_gmail_email(phone_number: str, reply_body: str, message_id: str = None, email_index: int = None) -> bool:
-    """Replies to a specific email in the same thread using proper In-Reply-To and References headers."""
+def reply_gmail_email(phone_number: str, reply_body: str, message_id: str = None, email_index: int = None, attachments: list = None) -> bool:
+    """Replies to a specific email in the same thread using proper In-Reply-To and References headers, supporting attachments."""
     service = get_gmail_service(phone_number)
     if not service:
         return False
@@ -364,6 +392,26 @@ def reply_gmail_email(phone_number: str, reply_body: str, message_id: str = None
                 message["References"] = orig_message_id
 
         message.attach(MIMEText(reply_body, "plain"))
+
+        # Attach local files if any
+        if attachments:
+            for att in attachments:
+                path = att.get("path")
+                filename = att.get("filename")
+                mime_type = att.get("mime_type", "application/octet-stream")
+
+                if path and os.path.exists(path):
+                    with open(path, "rb") as f:
+                        part_data = f.read()
+
+                    mime_part = MIMEBase(*mime_type.split("/"))
+                    mime_part.set_payload(part_data)
+                    encoders.encode_base64(mime_part)
+                    mime_part.add_header(
+                        "Content-Disposition",
+                        f"attachment; filename={filename}"
+                    )
+                    message.attach(mime_part)
 
         raw_msg = base64.urlsafe_b64encode(
             message.as_bytes()
@@ -782,3 +830,118 @@ def get_unread_emails_digest_data(phone_number: str, max_results: int = 5) -> li
     except Exception as e:
         logger.error(f"Error fetching email digest data: {e}")
         return []
+
+
+class GmailOperation:
+    """Base interface for all Gmail operations to follow Open-Closed Principle."""
+    def execute(self, service, phone_number: str, **kwargs):
+        raise NotImplementedError
+
+GMAIL_OPERATIONS_REGISTRY = {}
+
+def register_gmail_operation(name: str, op_class):
+    GMAIL_OPERATIONS_REGISTRY[name] = op_class
+
+def execute_gmail_operation(phone_number: str, operation_name: str, **kwargs) -> bool:
+    """Executes a registered Gmail operation by name."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        logger.error(f"Gmail service not found for {phone_number}")
+        return False
+    op_class = GMAIL_OPERATIONS_REGISTRY.get(operation_name)
+    if not op_class:
+        logger.error(f"Gmail operation '{operation_name}' is not registered.")
+        return False
+    try:
+        return op_class().execute(service, phone_number, **kwargs)
+    except Exception as e:
+        logger.error(f"Error executing Gmail operation '{operation_name}': {e}")
+        return False
+
+
+# --- Extensible Operations Implementations ---
+
+class ArchiveGmailEmail(GmailOperation):
+    def execute(self, service, phone_number: str, **kwargs):
+        message_id = kwargs.get("message_id")
+        if not message_id:
+            return False
+        # Archiving in Gmail means removing the INBOX label
+        service.users().messages().modify(
+            userId="me",
+            id=message_id,
+            body={"removeLabelIds": ["INBOX"]}
+        ).execute()
+        return True
+
+class LabelGmailEmail(GmailOperation):
+    def execute(self, service, phone_number: str, **kwargs):
+        message_id = kwargs.get("message_id")
+        label_id = kwargs.get("label_id")
+        if not message_id or not label_id:
+            return False
+        # Add label
+        service.users().messages().modify(
+            userId="me",
+            id=message_id,
+            body={"addLabelIds": [label_id]}
+        ).execute()
+        return True
+
+# Register the operations
+register_gmail_operation("archive", ArchiveGmailEmail)
+register_gmail_operation("label", LabelGmailEmail)
+
+
+def generate_daily_email_digest_data(phone_number: str) -> dict:
+    """Fetches categorized email counts and details to construct a daily email digest."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return {}
+
+    def count_query(q):
+        try:
+            res = service.users().messages().list(userId="me", q=q, maxResults=50).execute()
+            return len(res.get("messages", []))
+        except Exception:
+            return 0
+
+    def get_emails_query(q, max_r=3):
+        try:
+            res = service.users().messages().list(userId="me", q=q, maxResults=max_r).execute()
+            messages = res.get("messages", [])
+            items = []
+            for msg in messages:
+                details = service.users().messages().get(userId="me", id=msg["id"], format="metadata").execute()
+                headers = details.get("payload", {}).get("headers", [])
+                subject = "No Subject"
+                sender = "Unknown"
+                for h in headers:
+                    if h["name"].lower() == "subject":
+                        subject = h["value"]
+                    elif h["name"].lower() == "from":
+                        sender = h["value"]
+                items.append({"sender": sender, "subject": subject})
+            return items
+        except Exception:
+            return []
+
+    try:
+        unread_count = count_query("is:unread label:INBOX")
+        important_emails = get_emails_query("is:unread label:IMPORTANT")
+        meeting_invites = get_emails_query("invite OR invitation OR calendar")
+        promotions_count = count_query("category:promotions")
+        spam_count = count_query("label:spam")
+        priority_emails = get_emails_query("is:starred")
+
+        return {
+            "unread_count": unread_count,
+            "important": important_emails,
+            "meetings": meeting_invites,
+            "promotions_count": promotions_count,
+            "spam_count": spam_count,
+            "priority": priority_emails
+        }
+    except Exception as e:
+        logger.error(f"Error fetching daily digest data: {e}")
+        return {}

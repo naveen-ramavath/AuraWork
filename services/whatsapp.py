@@ -98,3 +98,34 @@ def send_media(to: str, media_id: str, media_type: str = "image") -> bool:
     except Exception as e:
         logger.exception(f"Exception sending {media_type} to {to}: {e}")
         return False
+
+
+def get_whatsapp_media_url_and_filename(media_id: str) -> (str, str):
+    """Retrieves the media URL and filename from the WhatsApp Cloud API using the media ID."""
+    if not Config.WHATSAPP_TOKEN:
+        return None, None
+    url = f"https://graph.facebook.com/{Config.API_VERSION}/{media_id}"
+    try:
+        response = requests.get(url, headers=get_whatsapp_headers(), timeout=10)
+        if response.ok:
+            data = response.json()
+            return data.get("url"), data.get("filename") or f"file_{media_id}"
+        logger.error(f"Failed to fetch WhatsApp media metadata: {response.text}")
+    except Exception as e:
+        logger.exception(f"Exception fetching media url for ID {media_id}: {e}")
+    return None, None
+
+
+def download_whatsapp_media(download_url: str) -> bytes:
+    """Downloads media content binary data from Meta URL."""
+    headers = {
+        "Authorization": f"Bearer {Config.WHATSAPP_TOKEN}"
+    }
+    try:
+        response = requests.get(download_url, headers=headers, timeout=20)
+        if response.ok:
+            return response.content
+        logger.error(f"Failed to download WhatsApp media: {response.status_code}")
+    except Exception as e:
+        logger.exception(f"Exception downloading media: {e}")
+    return b""

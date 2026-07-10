@@ -209,9 +209,9 @@ Because AuraWork runs an **Agentic execution loop** with Gemini 2.5 Flash, you c
 
 ---
 
-## 📧 Advanced AI Email Assistant (Gmail Integration)
+## 📧 Advanced Conversational AI Email Assistant (Gmail Integration)
 
-AuraWork features a complete, production-grade AI Email Assistant integrated directly into its planner and LLM schemas. It implements 10 advanced email management features following SOLID design principles:
+AuraWork features a complete, production-grade AI Email Assistant integrated directly into its planner and LLM schemas. It implements 12 advanced email management features following SOLID design principles:
 
 1. **Read Complete Email**: Recursively parses complex MIME structures (plain text, HTML, nested multiparts) and sanitizes body content by stripping styles and scripts.
 2. **Search Emails**: Queries the Gmail search index using Google's native advanced operators (`from:`, `is:unread`, `subject:`).
@@ -223,3 +223,7 @@ AuraWork features a complete, production-grade AI Email Assistant integrated dir
 8. **Delete Email**: Safely moves messages to the Gmail trash (`trash` API) rather than performing irreversible deletions.
 9. **Get File Attachments**: Downloads mail attachments to a local workspace folder served via FastAPI's `StaticFiles` at `/static/attachments/{file_name}` for user download.
 10. **Automatic Inbox Digest**: Bulk-fetches all unread messages and summarizes them together in a single request, avoiding slow, sequential execution.
+11. **Granular Session Memory**: Remembers context across interactions (e.g., last email read, last search query, unread lists) per phone number. Resolves conversational references like "him", "her", "that email", "first", "second", etc.
+12. **Daily Email Digest**: Computes a beautiful WhatsApp-formatted digest categorizing priority, unread counts, meeting invites, promotions, and spam.
+13. **WhatsApp Media Storage & Cleanup**: Accepts PDF, Image, DOCX, XLSX, and PPT uploads sent to WhatsApp. Securely stores them temporarily to reply or send with attachments, and automatically deletes them post-sending.
+14. **Extensible Operations Registry**: Leverages the Open-Closed Principle to register custom Gmail operations (like `archive` or `label`) through a clean, unified `GmailOperation` registry interface without editing the core Gmail service files.

@@ -90,7 +90,8 @@ async def process_webhook(request: Request, db: Session = Depends(get_db)):
         print("MARK READ DONE")
                 
         # Extract message body
-        if "text" in message:
+        msg_type = message.get("type", "text")
+        if msg_type == "text":
             text_body = message["text"]["body"].strip()
             logger.info(f"Received text message from {sender}: {text_body}")
             
@@ -121,9 +122,44 @@ async def process_webhook(request: Request, db: Session = Depends(get_db)):
             logger.info(f"Reply: {response_text}")
             logger.info(f"Message sent: {success}")
             
+        elif msg_type in ["document", "image", "audio", "video"]:
+            media_info = message.get(msg_type)
+            media_id = media_info.get("id")
+            filename = media_info.get("filename") or f"media_{media_id}"
+            mime_type = media_info.get("mime_type")
+            
+            from services.whatsapp import get_whatsapp_media_url_and_filename, download_whatsapp_media
+            url, meta_filename = get_whatsapp_media_url_and_filename(media_id)
+            if not media_info.get("filename") and meta_filename:
+                filename = meta_filename
+            
+            if url:
+                data = download_whatsapp_media(url)
+                if data:
+                    os.makedirs("static/uploads", exist_ok=True)
+                    safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
+                    if not safe_filename:
+                        safe_filename = f"file_{media_id}"
+                    
+                    file_path = os.path.join("static", "uploads", f"{media_id}_{safe_filename}")
+                    with open(file_path, "wb") as f:
+                        f.write(data)
+                    
+                    from agent.memory import get_session_memory
+                    memory = get_session_memory(sender)
+                    memory.last_attachment.append({
+                        "filename": filename,
+                        "path": file_path,
+                        "mime_type": mime_type or "application/octet-stream"
+                    })
+                    logger.info(f"Successfully saved WhatsApp media attachment to {file_path}")
+                    send_text(sender, f"📎 Received and saved attachment: *{filename}*. You can now reply to an email or forward it with this attachment.")
+                else:
+                    send_text(sender, "❌ Failed to download attachment data.")
+            else:
+                send_text(sender, "❌ Failed to retrieve attachment download URL.")
         else:
-            # Handle media, documents, or location updates
-            send_text(sender, "I currently only support text commands. Media support coming soon!")
+            send_text(sender, "I currently only support text commands and file attachments (images/documents).")
             
     except Exception as e:
         logger.exception("Error handling WhatsApp Webhook")

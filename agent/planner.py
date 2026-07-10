@@ -12,6 +12,7 @@ import tools.slack as slack_tool
 import tools.jira as jira_tool
 import tools.gmail as gmail_tool
 import tools.calendar as calendar_tool
+from agent.memory import get_session_memory
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,66 @@ class SyncCopilotAgent:
             return json.dumps({"error": "Failed to create meeting. Ensure Google account is authenticated."})
         return json.dumps(event)
 
+    def _resolve_context(self, message_id: str = None, email_index: int = None) -> dict:
+        """Resolves target email context using the session memory or direct input."""
+        memory = get_session_memory(self.phone_number)
+        
+        # 1. Resolve by index if provided
+        if email_index is not None:
+            try:
+                idx = int(email_index) - 1
+                if 0 <= idx < len(memory.last_email_list):
+                    selected = memory.last_email_list[idx]
+                    memory.update_email_context(selected)
+                    return selected
+            except (ValueError, TypeError):
+                pass
+                
+        # 2. Resolve by message_id if provided
+        if message_id:
+            for item in memory.last_email_list:
+                if item.get("id") == message_id:
+                    memory.update_email_context(item)
+                    return item
+            return {"id": message_id}
+            
+        # 3. Fallback to last selected / active email
+        if memory.last_selected_email:
+            return memory.last_selected_email
+            
+        if memory.last_message_id:
+            return {
+                "id": memory.last_message_id,
+                "threadId": memory.last_thread_id,
+                "subject": memory.last_subject,
+                "sender": memory.last_sender,
+                "sender_email": memory.last_sender_email
+            }
+            
+        return None
+
+    def _resolve_contact_email(self, name_or_email: str) -> str:
+        """Resolves recipient name to email using session memory context if possible."""
+        if not name_or_email:
+            return ""
+        if "@" in name_or_email:
+            return name_or_email
+            
+        memory = get_session_memory(self.phone_number)
+        
+        # Check if the name matches the last sender
+        if memory.last_sender and name_or_email.lower() in memory.last_sender.lower():
+            if memory.last_sender_email:
+                return memory.last_sender_email
+                
+        # Check if it matches last contact
+        if memory.last_contact and name_or_email.lower() in memory.last_contact.lower():
+            if "@" in memory.last_contact:
+                return memory.last_contact
+                
+        # Return name as is if we can't resolve
+        return name_or_email
+
     def fetch_unread_emails(self, limit: int = 5) -> str:
         """Retrieves unread emails from the user's Gmail inbox.
 
@@ -78,13 +139,23 @@ class SyncCopilotAgent:
             limit (int): Maximum number of emails to retrieve. Defaults to 5.
 
         Returns:
-            str: JSON list of emails containing sender, subject, date, and snippet.
+            str: Conversational formatted text with numbered emails.
         """
         logger.info(f"Tool Executed: fetch_unread_emails for {self.phone_number}")
         emails = gmail_tool.fetch_unread_emails(self.phone_number, limit)
         if not emails:
-            return json.dumps({"error": "No unread emails found or user not authenticated. Tell the user to run /login."})
-        return json.dumps(emails)
+            return "No unread emails found or user not authenticated. Tell the user to run /login."
+            
+        # Save to memory
+        memory = get_session_memory(self.phone_number)
+        memory.last_email_list = emails
+        memory.last_action = "fetch_unread_emails"
+        
+        # Format for output (Numbered list)
+        lines = []
+        for idx, em in enumerate(emails, 1):
+            lines.append(f"{idx}.\nSender: {em.get('sender')}\nSubject: {em.get('subject')}\nDate: {em.get('date')}\nSnippet: {em.get('snippet')}\n")
+        return "\n".join(lines)
 
     def read_email(self, message_id: str = None, email_index: int = None) -> str:
         """Retrieves and reads the full text of a specific Gmail email.
@@ -97,8 +168,21 @@ class SyncCopilotAgent:
             str: JSON string containing details of the email or error.
         """
         logger.info(f"Tool Executed: read_email for {self.phone_number} (id: {message_id}, index: {email_index})")
-        email_data = gmail_tool.read_gmail_email(self.phone_number, message_id, email_index)
-        return json.dumps(email_data)
+        ctx = self._resolve_context(message_id, email_index)
+        if not ctx or not ctx.get("id"):
+            return "Error: Could not resolve which email to read from session memory. Please specify which email you want to read."
+            
+        email_data = gmail_tool.read_gmail_email(self.phone_number, ctx["id"])
+        if not email_data:
+            return "Failed to read email."
+            
+        # Update memory context with full parsed details
+        memory = get_session_memory(self.phone_number)
+        full_detail = {**ctx, **email_data}
+        memory.update_email_context(full_detail)
+        memory.last_action = "read_email"
+        
+        return json.dumps(full_detail)
 
     def search_emails(self, query: str, limit: int = 5) -> str:
         """Searches the user's Gmail emails using standard Gmail search syntax (e.g. from:Microsoft, subject:internship, is:unread).
@@ -108,11 +192,24 @@ class SyncCopilotAgent:
             limit (int): Maximum number of search results to return. Defaults to 5.
 
         Returns:
-            str: JSON string containing a list of matching emails or error.
+            str: Conversational formatted text with numbered search results.
         """
         logger.info(f"Tool Executed: search_emails for {self.phone_number} (query: {query}, limit: {limit})")
         emails = gmail_tool.search_gmail_emails(self.phone_number, query, limit)
-        return json.dumps(emails)
+        if not emails:
+            return f"No emails found matching query '{query}'."
+            
+        # Save to memory
+        memory = get_session_memory(self.phone_number)
+        memory.last_email_list = emails
+        memory.last_search_query = query
+        memory.last_action = "search_emails"
+        
+        # Format for output (Numbered list)
+        lines = []
+        for idx, em in enumerate(emails, 1):
+            lines.append(f"{idx}.\nSender: {em.get('sender')}\nSubject: {em.get('subject')}\nDate: {em.get('date')}\nSnippet: {em.get('snippet')}\n")
+        return "\n".join(lines)
 
     def reply_to_email(self, reply_body: str, message_id: str = None, email_index: int = None) -> str:
         """Replies to a specific email inside the same email thread using threadId and messageId references.
@@ -126,8 +223,17 @@ class SyncCopilotAgent:
             str: JSON string indicating success or error.
         """
         logger.info(f"Tool Executed: reply_to_email for {self.phone_number} (id: {message_id}, index: {email_index})")
-        success = gmail_tool.reply_gmail_email(self.phone_number, reply_body, message_id, email_index)
+        ctx = self._resolve_context(message_id, email_index)
+        if not ctx or not ctx.get("id"):
+            return "Error: Could not resolve email context to reply. Please specify which email to reply to."
+            
+        memory = get_session_memory(self.phone_number)
+        attachments = memory.last_attachment
+        
+        success = gmail_tool.reply_gmail_email(self.phone_number, reply_body, ctx["id"], attachments=attachments)
         if success:
+            memory.clear_attachments() # Auto delete temporary files
+            memory.last_action = "reply_to_email"
             return json.dumps({"status": "success", "message": "Reply sent successfully."})
         return json.dumps({"status": "error", "message": "Failed to send reply."})
 
@@ -143,9 +249,17 @@ class SyncCopilotAgent:
             str: JSON string indicating success or error.
         """
         logger.info(f"Tool Executed: forward_email for {self.phone_number} to {to_email} (id: {message_id}, index: {email_index})")
-        success = gmail_tool.forward_gmail_email(self.phone_number, to_email, message_id, email_index)
+        ctx = self._resolve_context(message_id, email_index)
+        if not ctx or not ctx.get("id"):
+            return "Error: Could not resolve email context to forward. Please specify which email to forward."
+            
+        resolved_to = self._resolve_contact_email(to_email)
+        
+        success = gmail_tool.forward_gmail_email(self.phone_number, resolved_to, ctx["id"])
         if success:
-            return json.dumps({"status": "success", "message": f"Email forwarded successfully to {to_email}."})
+            memory = get_session_memory(self.phone_number)
+            memory.last_action = "forward_email"
+            return json.dumps({"status": "success", "message": f"Email forwarded successfully to {resolved_to}."})
         return json.dumps({"status": "error", "message": "Failed to forward email."})
 
     def mark_as_read(self, message_id: str = None, email_index: int = None) -> str:
@@ -159,8 +273,14 @@ class SyncCopilotAgent:
             str: JSON string indicating success or error.
         """
         logger.info(f"Tool Executed: mark_as_read for {self.phone_number} (id: {message_id}, index: {email_index})")
-        success = gmail_tool.mark_gmail_email_as_read(self.phone_number, message_id, email_index)
+        ctx = self._resolve_context(message_id, email_index)
+        if not ctx or not ctx.get("id"):
+            return "Error: Could not resolve email context to mark as read."
+            
+        success = gmail_tool.mark_gmail_email_as_read(self.phone_number, ctx["id"])
         if success:
+            memory = get_session_memory(self.phone_number)
+            memory.last_action = "mark_as_read"
             return json.dumps({"status": "success", "message": "Email marked as read."})
         return json.dumps({"status": "error", "message": "Failed to mark email as read."})
 
@@ -175,8 +295,14 @@ class SyncCopilotAgent:
             str: JSON string indicating success or error.
         """
         logger.info(f"Tool Executed: mark_as_unread for {self.phone_number} (id: {message_id}, index: {email_index})")
-        success = gmail_tool.mark_gmail_email_as_unread(self.phone_number, message_id, email_index)
+        ctx = self._resolve_context(message_id, email_index)
+        if not ctx or not ctx.get("id"):
+            return "Error: Could not resolve email context to mark as unread."
+            
+        success = gmail_tool.mark_gmail_email_as_unread(self.phone_number, ctx["id"])
         if success:
+            memory = get_session_memory(self.phone_number)
+            memory.last_action = "mark_as_unread"
             return json.dumps({"status": "success", "message": "Email marked as unread."})
         return json.dumps({"status": "error", "message": "Failed to mark email as unread."})
 
@@ -193,8 +319,14 @@ class SyncCopilotAgent:
         """
         action = "starred" if star else "unstarred"
         logger.info(f"Tool Executed: star_email for {self.phone_number} (id: {message_id}, index: {email_index}, action: {action})")
-        success = gmail_tool.star_gmail_email(self.phone_number, message_id, email_index, star)
+        ctx = self._resolve_context(message_id, email_index)
+        if not ctx or not ctx.get("id"):
+            return f"Error: Could not resolve email context to {action[:-2]}."
+            
+        success = gmail_tool.star_gmail_email(self.phone_number, ctx["id"], None, star)
         if success:
+            memory = get_session_memory(self.phone_number)
+            memory.last_action = f"star_email_{action}"
             return json.dumps({"status": "success", "message": f"Email {action} successfully."})
         return json.dumps({"status": "error", "message": f"Failed to {action[:-2]} email."})
 
@@ -209,8 +341,14 @@ class SyncCopilotAgent:
             str: JSON string indicating success or error.
         """
         logger.info(f"Tool Executed: delete_email for {self.phone_number} (id: {message_id}, index: {email_index})")
-        success = gmail_tool.delete_gmail_email(self.phone_number, message_id, email_index)
+        ctx = self._resolve_context(message_id, email_index)
+        if not ctx or not ctx.get("id"):
+            return "Error: Could not resolve email context to delete."
+            
+        success = gmail_tool.delete_gmail_email(self.phone_number, ctx["id"])
         if success:
+            memory = get_session_memory(self.phone_number)
+            memory.last_action = "delete_email"
             return json.dumps({"status": "success", "message": "Email moved to trash successfully."})
         return json.dumps({"status": "error", "message": "Failed to delete email."})
 
@@ -225,7 +363,11 @@ class SyncCopilotAgent:
             str: JSON string containing a list of attachments details (filename, size_bytes, media_url).
         """
         logger.info(f"Tool Executed: get_attachments for {self.phone_number} (id: {message_id}, index: {email_index})")
-        attachments = gmail_tool.get_gmail_attachments(self.phone_number, message_id, email_index)
+        ctx = self._resolve_context(message_id, email_index)
+        if not ctx or not ctx.get("id"):
+            return "Error: Could not resolve email context to fetch attachments."
+            
+        attachments = gmail_tool.get_gmail_attachments(self.phone_number, ctx["id"])
         return json.dumps(attachments)
 
     def generate_inbox_digest(self, max_results: int = 5) -> str:
@@ -241,20 +383,69 @@ class SyncCopilotAgent:
         digest_data = gmail_tool.get_unread_emails_digest_data(self.phone_number, max_results)
         return json.dumps(digest_data)
 
+    def get_daily_email_digest(self) -> str:
+        """Fetches and generates a beautiful daily email digest with categories like Today's Inbox, Meeting Invites, Promotions, and Spam."""
+        logger.info(f"Tool Executed: get_daily_email_digest for {self.phone_number}")
+        data = gmail_tool.generate_daily_email_digest_data(self.phone_number)
+        if not data:
+            return "Failed to fetch email digest."
+
+        # Format beautiful WhatsApp output
+        lines = [
+            "*Good Morning!* ☀️",
+            "",
+            "Here is your *Today's Inbox* email digest:",
+            f"📨 *Unread Count*: {data.get('unread_count', 0)} unread emails",
+            ""
+        ]
+
+        priority = data.get("priority", [])
+        if priority:
+            lines.append("⭐ *Priority / Starred Emails*:")
+            for item in priority:
+                lines.append(f"- From: {item['sender']} | Subject: {item['subject']}")
+            lines.append("")
+
+        important = data.get("important", [])
+        if important:
+            lines.append("🔥 *Important Emails*:")
+            for item in important:
+                lines.append(f"- From: {item['sender']} | Subject: {item['subject']}")
+            lines.append("")
+
+        meetings = data.get("meetings", [])
+        if meetings:
+            lines.append("📅 *Meeting Invites*:")
+            for item in meetings:
+                lines.append(f"- From: {item['sender']} | Subject: {item['subject']}")
+            lines.append("")
+
+        lines.append(f"🏷️ *Promotions*: {data.get('promotions_count', 0)} unread promotions")
+        lines.append(f"🛡️ *Spam*: {data.get('spam_count', 0)} spam messages")
+
+        return "\n".join(lines)
+
     def send_email(self, to_email: str, subject: str, body: str) -> str:
+        """Sends an email immediately, optionally including local file attachments."""
         logger.info(f"Tool Executed: send_email to {to_email}")
+        resolved_to = self._resolve_contact_email(to_email)
+
+        memory = get_session_memory(self.phone_number)
+        attachments = memory.last_attachment
 
         success = gmail_tool.send_gmail_email(
             self.phone_number,
-            to_email,
+            resolved_to,
             subject,
-            body
+            body,
+            attachments=attachments
         )
 
         if success:
+            memory.clear_attachments()  # Auto delete temporary files
             return json.dumps({
                 "status": "success",
-                "message": f"Email sent successfully to {to_email}."
+                "message": f"Email sent successfully to {resolved_to}."
             })
 
         return json.dumps({
@@ -263,13 +454,22 @@ class SyncCopilotAgent:
         })
 
     def draft_email(self, to_email: str, subject: str, body: str) -> str:
-        """Creates an email draft."""
+        """Creates an email draft.
 
+        Args:
+            to_email (str): Recipient email address.
+            subject (str): Email subject.
+            body (str): Email body text.
+
+        Returns:
+            str: JSON string indicating success or error.
+        """
         logger.info(f"Tool Executed: draft_email to {to_email}")
+        resolved_to = self._resolve_contact_email(to_email)
 
         success = gmail_tool.create_gmail_draft(
             self.phone_number,
-            to_email,
+            resolved_to,
             subject,
             body
         )
@@ -277,7 +477,7 @@ class SyncCopilotAgent:
         if success:
             return json.dumps({
                 "status": "success",
-                "message": f"Draft created successfully for {to_email}."
+                "message": f"Draft created successfully for {resolved_to}."
             })
 
         return json.dumps({
@@ -372,6 +572,22 @@ class SyncCopilotAgent:
         if not Config.GEMINI_API_KEY:
             return "⚠️ Gemini API key is missing. Please check your config."
 
+        memory = get_session_memory(self.phone_number)
+        
+        # Build contextual instructions based on session memory
+        state_context = (
+            f"Active Session Memory Context:\n"
+            f"- Last Selected Email ID: {memory.last_message_id or 'None'}\n"
+            f"- Last Thread ID: {memory.last_thread_id or 'None'}\n"
+            f"- Last Subject: {memory.last_subject or 'None'}\n"
+            f"- Last Sender Name: {memory.last_sender or 'None'}\n"
+            f"- Last Sender Email: {memory.last_sender_email or 'None'}\n"
+            f"- Last Search Query: {memory.last_search_query or 'None'}\n"
+            f"- Last Action: {memory.last_action or 'None'}\n"
+            f"- Pending Attachments Uploaded by WhatsApp: {[att.get('filename') for att in memory.last_attachment]}\n"
+            f"- Number of listed emails in last view: {len(memory.last_email_list)}\n"
+        )
+
         system_instruction = (
             "You are SyncCopilot AI, a workplace assistant that helps employees manage tasks.\n"
             "You run inside WhatsApp. Help the user complete real-world tasks using your tools.\n"
@@ -380,9 +596,11 @@ class SyncCopilotAgent:
             "1. Before scheduling anything, checking schedule, or doing date comparisons, ALWAYS invoke `get_current_time` to check today's date and time.\n"
             "2. Never fabricate emails, tickets, or schedules. If a tool returns no data, explain that clearly.\n"
             "3. If a tool fails because Google credentials are missing, ask the user to type `/login` to authorize their account.\n"
-            "4. Keep your replies concise, friendly, and structured using WhatsApp markdown compatibility (bold, lists)."
+            "4. Keep your replies concise, friendly, and structured using WhatsApp markdown compatibility (bold, lists).\n"
             "5. If the user asks to send an email, ALWAYS use send_email.\n"
-            "6. Only use draft_email if the user explicitly asks to create a draft."
+            "6. Only use draft_email if the user explicitly asks to create a draft.\n"
+            "7. Use the Active Session Memory Context to resolve terms like 'him', 'her', 'first', 'second', 'reply to it', 'forward this', 'delete it' or 'that email'. For example, if the user says 'reply to it', and the Last Selected Email ID is set, use it.\n\n"
+            f"{state_context}"
         )
 
         # Register tools
@@ -401,6 +619,7 @@ class SyncCopilotAgent:
             self.delete_email,
             self.get_attachments,
             self.generate_inbox_digest,
+            self.get_daily_email_digest,
             self.send_email,
             self.draft_email,
             self.post_slack_message,
@@ -411,8 +630,6 @@ class SyncCopilotAgent:
         ]
 
         try:
-            router = AIRouter()
-
             return self.ai_router.generate(
                 provider=Config.AI_PROVIDER,
                 user_message=user_message,
