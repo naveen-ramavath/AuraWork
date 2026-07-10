@@ -572,3 +572,43 @@ def mark_gmail_email_as_unread(phone_number: str, message_id: str = None, email_
     except Exception as e:
         logger.error(f"Error marking Gmail message as unread: {e}")
         return False
+
+
+def star_gmail_email(phone_number: str, message_id: str = None, email_index: int = None, star: bool = True) -> bool:
+    """Stars or unstars a specific email by adding or removing the STARRED label."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return False
+
+    try:
+        target_id = message_id
+        if not target_id and email_index is not None:
+            results = service.users().messages().list(
+                userId="me", maxResults=email_index
+            ).execute()
+            messages = results.get("messages", [])
+            if len(messages) >= email_index:
+                target_id = messages[email_index - 1]["id"]
+            else:
+                logger.error(f"Email at index {email_index} not found for starring.")
+                return False
+
+        if not target_id:
+            logger.error("Must provide either message_id or email_index to star/unstar.")
+            return False
+
+        body = {}
+        if star:
+            body["addLabelIds"] = ["STARRED"]
+        else:
+            body["removeLabelIds"] = ["STARRED"]
+
+        service.users().messages().modify(
+            userId="me", id=target_id,
+            body=body
+        ).execute()
+
+        return True
+    except Exception as e:
+        logger.error(f"Error starring/unstarring Gmail message: {e}")
+        return False

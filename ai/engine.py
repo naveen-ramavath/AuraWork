@@ -220,6 +220,31 @@ GROQ_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "star_email",
+            "description": "Stars or unstars a specific email by adding or removing the STARRED label.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "The unique ID of the email. Optional if email_index is given."
+                    },
+                    "email_index": {
+                        "type": "integer",
+                        "description": "The 1-based index of the email in the inbox list. Optional if message_id is given."
+                    },
+                    "star": {
+                        "type": "boolean",
+                        "description": "True to star the email, False to unstar it. Defaults to True."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "send_email",
             "description": "Sends an email immediately.",
             "parameters": {
