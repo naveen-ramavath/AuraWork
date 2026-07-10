@@ -199,6 +199,27 @@ GROQ_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "mark_as_unread",
+            "description": "Marks a specific email as unread by adding the unread label.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "The unique ID of the email. Optional if email_index is given."
+                    },
+                    "email_index": {
+                        "type": "integer",
+                        "description": "The 1-based index of the email in the inbox list. Optional if message_id is given."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "send_email",
             "description": "Sends an email immediately.",
             "parameters": {

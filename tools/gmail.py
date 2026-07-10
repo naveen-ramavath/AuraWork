@@ -538,3 +538,37 @@ def mark_gmail_email_as_read(phone_number: str, message_id: str = None, email_in
     except Exception as e:
         logger.error(f"Error marking Gmail message as read: {e}")
         return False
+
+
+def mark_gmail_email_as_unread(phone_number: str, message_id: str = None, email_index: int = None) -> bool:
+    """Marks a specific email as unread by adding the UNREAD label."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return False
+
+    try:
+        target_id = message_id
+        if not target_id and email_index is not None:
+            results = service.users().messages().list(
+                userId="me", maxResults=email_index
+            ).execute()
+            messages = results.get("messages", [])
+            if len(messages) >= email_index:
+                target_id = messages[email_index - 1]["id"]
+            else:
+                logger.error(f"Email at index {email_index} not found for marking as unread.")
+                return False
+
+        if not target_id:
+            logger.error("Must provide either message_id or email_index to mark as unread.")
+            return False
+
+        service.users().messages().modify(
+            userId="me", id=target_id,
+            body={"addLabelIds": ["UNREAD"]}
+        ).execute()
+
+        return True
+    except Exception as e:
+        logger.error(f"Error marking Gmail message as unread: {e}")
+        return False

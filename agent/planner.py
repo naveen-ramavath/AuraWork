@@ -164,6 +164,22 @@ class SyncCopilotAgent:
             return json.dumps({"status": "success", "message": "Email marked as read."})
         return json.dumps({"status": "error", "message": "Failed to mark email as read."})
 
+    def mark_as_unread(self, message_id: str = None, email_index: int = None) -> str:
+        """Marks a specific email as unread by adding the unread label.
+
+        Args:
+            message_id (str): The unique ID of the email. Optional if email_index is given.
+            email_index (int): The 1-based index of the email in the inbox list. Optional if message_id is given.
+
+        Returns:
+            str: JSON string indicating success or error.
+        """
+        logger.info(f"Tool Executed: mark_as_unread for {self.phone_number} (id: {message_id}, index: {email_index})")
+        success = gmail_tool.mark_gmail_email_as_unread(self.phone_number, message_id, email_index)
+        if success:
+            return json.dumps({"status": "success", "message": "Email marked as unread."})
+        return json.dumps({"status": "error", "message": "Failed to mark email as unread."})
+
     def send_email(self, to_email: str, subject: str, body: str) -> str:
         logger.info(f"Tool Executed: send_email to {to_email}")
 
@@ -319,6 +335,7 @@ class SyncCopilotAgent:
             self.reply_to_email,
             self.forward_email,
             self.mark_as_read,
+            self.mark_as_unread,
             self.send_email,
             self.draft_email,
             self.post_slack_message,
