@@ -381,3 +381,126 @@ def reply_gmail_email(phone_number: str, reply_body: str, message_id: str = None
     except Exception as e:
         logger.error(f"Error replying to Gmail message: {e}")
         return False
+
+
+from email.mime.base import MIMEBase
+from email import encoders
+
+def forward_gmail_email(phone_number: str, to_email: str, message_id: str = None, email_index: int = None) -> bool:
+    """Forwards an email to a recipient, including body text and attachments."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return False
+
+    try:
+        target_id = message_id
+        if not target_id and email_index is not None:
+            results = service.users().messages().list(
+                userId="me", maxResults=email_index
+            ).execute()
+            messages = results.get("messages", [])
+            if len(messages) >= email_index:
+                target_id = messages[email_index - 1]["id"]
+            else:
+                logger.error(f"Email at index {email_index} not found for forwarding.")
+                return False
+
+        if not target_id:
+            logger.error("Must provide either message_id or email_index to forward.")
+            return False
+
+        orig_msg = service.users().messages().get(
+            userId="me", id=target_id, format="full"
+        ).execute()
+
+        payload = orig_msg.get("payload", {})
+        headers = payload.get("headers", [])
+
+        orig_subject = "No Subject"
+        orig_sender = "Unknown Sender"
+        orig_date = ""
+        orig_to = ""
+
+        for header in headers:
+            name = header["name"].lower()
+            if name == "subject":
+                orig_subject = header["value"]
+            elif name == "from":
+                orig_sender = header["value"]
+            elif name == "date":
+                orig_date = header["value"]
+            elif name == "to":
+                orig_to = header["value"]
+
+        orig_body = parse_message_payload(payload)
+        if not orig_body:
+            body_data = payload.get("body", {}).get("data", "")
+            if body_data:
+                orig_body = base64.urlsafe_b64decode(body_data.encode("UTF-8")).decode("utf-8", errors="replace")
+
+        fwd_header = (
+            f"\n\n---------- Forwarded message ---------\n"
+            f"From: {orig_sender}\n"
+            f"Date: {orig_date}\n"
+            f"Subject: {orig_subject}\n"
+            f"To: {orig_to}\n\n"
+        )
+
+        full_body = fwd_header + orig_body
+
+        mime_type = payload.get("mimeType", "")
+        if "html" in mime_type or "<body" in full_body or "<div" in full_body:
+            full_body = clean_html(full_body)
+
+        message = MIMEMultipart()
+        message["to"] = to_email
+        message["subject"] = f"Fwd: {orig_subject}"
+
+        message.attach(MIMEText(full_body, "plain"))
+
+        def attach_parts(parts):
+            for part in parts:
+                filename = part.get("filename")
+                part_mime = part.get("mimeType", "application/octet-stream")
+                body = part.get("body", {})
+                attachment_id = body.get("attachmentId")
+
+                if filename and attachment_id:
+                    try:
+                        att_res = service.users().messages().attachments().get(
+                            userId="me", messageId=target_id, id=attachment_id
+                        ).execute()
+                        att_data = base64.urlsafe_b64decode(att_res.get("data", "").encode("UTF-8"))
+
+                        mime_part = MIMEBase(*part_mime.split("/"))
+                        mime_part.set_payload(att_data)
+                        encoders.encode_base64(mime_part)
+                        mime_part.add_header(
+                            "Content-Disposition",
+                            f"attachment; filename={filename}"
+                        )
+                        message.attach(mime_part)
+                        logger.info(f"Attached forwarded file: {filename}")
+                    except Exception as ex:
+                        logger.error(f"Failed to fetch/attach forwarded attachment {filename}: {ex}")
+
+                nested_parts = part.get("parts")
+                if nested_parts:
+                    attach_parts(nested_parts)
+
+        if "parts" in payload:
+            attach_parts(payload["parts"])
+
+        raw_msg = base64.urlsafe_b64encode(
+            message.as_bytes()
+        ).decode("utf-8")
+
+        service.users().messages().send(
+            userId="me",
+            body={"raw": raw_msg}
+        ).execute()
+
+        return True
+    except Exception as e:
+        logger.error(f"Error forwarding Gmail message: {e}")
+        return False

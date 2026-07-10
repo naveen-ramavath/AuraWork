@@ -153,6 +153,31 @@ GROQ_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "forward_email",
+            "description": "Forwards an email to a specified recipient address, preserving headers and forwarding attachments.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "to_email": {
+                        "type": "string",
+                        "description": "The email address to forward the email to."
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "The unique ID of the email being forwarded. Optional if email_index is given."
+                    },
+                    "email_index": {
+                        "type": "integer",
+                        "description": "The 1-based index of the email in the inbox list. Optional if message_id is given."
+                    }
+                },
+                "required": ["to_email"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "send_email",
             "description": "Sends an email immediately.",
             "parameters": {

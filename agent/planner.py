@@ -131,6 +131,23 @@ class SyncCopilotAgent:
             return json.dumps({"status": "success", "message": "Reply sent successfully."})
         return json.dumps({"status": "error", "message": "Failed to send reply."})
 
+    def forward_email(self, to_email: str, message_id: str = None, email_index: int = None) -> str:
+        """Forwards an email to a specified recipient address, preserving headers and forwarding attachments.
+
+        Args:
+            to_email (str): The email address to forward the email to.
+            message_id (str): The unique ID of the email being forwarded. Optional if email_index is given.
+            email_index (int): The 1-based index of the email in the inbox list. Optional if message_id is given.
+
+        Returns:
+            str: JSON string indicating success or error.
+        """
+        logger.info(f"Tool Executed: forward_email for {self.phone_number} to {to_email} (id: {message_id}, index: {email_index})")
+        success = gmail_tool.forward_gmail_email(self.phone_number, to_email, message_id, email_index)
+        if success:
+            return json.dumps({"status": "success", "message": f"Email forwarded successfully to {to_email}."})
+        return json.dumps({"status": "error", "message": "Failed to forward email."})
+
     def send_email(self, to_email: str, subject: str, body: str) -> str:
         logger.info(f"Tool Executed: send_email to {to_email}")
 
@@ -284,6 +301,7 @@ class SyncCopilotAgent:
             self.read_email,
             self.search_emails,
             self.reply_to_email,
+            self.forward_email,
             self.send_email,
             self.draft_email,
             self.post_slack_message,
