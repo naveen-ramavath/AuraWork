@@ -34,3 +34,6 @@ class Config:
     # OpenAI / Claude / Gemini API Settings (for future agent integration)
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")

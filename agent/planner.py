@@ -2,6 +2,7 @@ import json
 import logging
 import datetime
 import google.generativeai as genai
+from ai.router import AIRouter
 from google.generativeai.types import GenerateContentResponse
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ class SyncCopilotAgent:
         self.db = db
         # Configure Gemini API
         genai.configure(api_key=Config.GEMINI_API_KEY)
+        self.ai_router = AIRouter()
 
     # --- Tool Definitions ---
 
@@ -246,7 +248,8 @@ class SyncCopilotAgent:
         try:
             router = AIRouter()
 
-            return router.generate(
+            return self.ai_router.generate(
+                provider=Config.AI_PROVIDER,
                 user_message=user_message,
                 tools=tool_list,
                 system_instruction=system_instruction,
