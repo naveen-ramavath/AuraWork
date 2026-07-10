@@ -37,3 +37,5 @@ class Config:
 
     AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")

@@ -322,16 +322,24 @@ class AIEngine:
         elif provider == "groq":
             return AIEngine.execute_groq(**kwargs)
 
+        elif provider == "openrouter":
+            return AIEngine.execute_openrouter(**kwargs)
+
+        elif provider == "deepseek":
+            return AIEngine.execute_deepseek(**kwargs)
+
         raise ValueError(f"Unsupported provider: {provider}")
 
     @staticmethod
-    def execute_groq(
+    def execute_openai_compatible(
         client,
+        model_name,
+        provider_name,
         user_message,
         tools,
         system_instruction,
     ):
-        # Convert registered python tools to Groq tool schemas
+        # Convert registered python tools to tool schemas
         tools_schemas = []
         for tool_func in tools:
             name = tool_func.__name__
@@ -339,7 +347,7 @@ class AIEngine:
             if schema:
                 tools_schemas.append(schema)
             else:
-                logger.warning(f"No Groq tool schema found for python function: {name}")
+                logger.warning(f"No tool schema found for python function: {name}")
 
         messages = [
             {
@@ -356,17 +364,17 @@ class AIEngine:
 
         for _ in range(loop_limit):
             try:
-                # Call Groq chat completions
+                # Call completions API
                 completion = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model=model_name,
                     messages=messages,
                     tools=tools_schemas if tools_schemas else None,
                     tool_choice="auto" if tools_schemas else None,
                     temperature=0.3,
                 )
             except Exception as e:
-                logger.exception(f"Error calling Groq API: {e}")
-                return f"❌ Sorry, I encountered an error communicating with Groq: {str(e)}"
+                logger.exception(f"Error calling {provider_name} API: {e}")
+                return f"❌ Sorry, I encountered an error communicating with {provider_name}: {str(e)}"
 
             response_message = completion.choices[0].message
             
@@ -404,7 +412,7 @@ class AIEngine:
                         logger.error(f"Failed to parse arguments for tool {tool_name}: {e}")
 
                 logger.info(
-                    f"Groq requested tool: {tool_name} with args: {tool_args}"
+                    f"{provider_name} requested tool: {tool_name} with args: {tool_args}"
                 )
 
                 try:
@@ -428,3 +436,51 @@ class AIEngine:
                 })
 
         return messages[-1]["content"]
+
+    @staticmethod
+    def execute_groq(
+        client,
+        user_message,
+        tools,
+        system_instruction,
+    ):
+        return AIEngine.execute_openai_compatible(
+            client=client,
+            model_name="llama-3.3-70b-versatile",
+            provider_name="Groq",
+            user_message=user_message,
+            tools=tools,
+            system_instruction=system_instruction,
+        )
+
+    @staticmethod
+    def execute_openrouter(
+        client,
+        user_message,
+        tools,
+        system_instruction,
+    ):
+        return AIEngine.execute_openai_compatible(
+            client=client,
+            model_name="meta-llama/llama-3.3-70b-instruct",
+            provider_name="OpenRouter",
+            user_message=user_message,
+            tools=tools,
+            system_instruction=system_instruction,
+        )
+
+    @staticmethod
+    def execute_deepseek(
+        client,
+        user_message,
+        tools,
+        system_instruction,
+    ):
+        return AIEngine.execute_openai_compatible(
+            client=client,
+            model_name="deepseek-chat",
+            provider_name="DeepSeek",
+            user_message=user_message,
+            tools=tools,
+            system_instruction=system_instruction,
+        )
