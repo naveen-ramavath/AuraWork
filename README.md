@@ -4,6 +4,9 @@
   <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/FastAPI-0.111-green?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/Google_Gemini-2.5_Flash-orange?style=for-the-badge&logo=google&logoColor=white" alt="Google Gemini" />
+  <img src="https://img.shields.io/badge/Groq-Llama_3.3-red?style=for-the-badge&logo=openai&logoColor=white" alt="Groq Llama 3.3" />
+  <img src="https://img.shields.io/badge/OpenRouter-Router-purple?style=for-the-badge&logo=webauthn&logoColor=white" alt="OpenRouter" />
+  <img src="https://img.shields.io/badge/DeepSeek-API-blue?style=for-the-badge&logo=deepseek&logoColor=white" alt="DeepSeek" />
   <img src="https://img.shields.io/badge/WhatsApp_Cloud_API-Meta-blueviolet?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp Cloud API" />
   <img src="https://img.shields.io/badge/SQLite-Database-lightgrey?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" />
 </p>
@@ -17,7 +20,26 @@
 Instead of jumping between multiple apps, desktop portals, or notifications on the go, AuraWork lets employees manage tasks, log work hours, view schedules, draft emails, and post updates directly from their mobile WhatsApp chat using natural language or structured commands.
 
 > [!NOTE]
-> **Integration Status**: Both **Gmail** (reading, drafting, and sending emails) and **Google Calendar** (fetching upcoming schedules and events) integrations are now fully implemented and working successfully!
+> **Integration Status**: Both **Gmail** & **Google Calendar** integrations are fully working. Additionally, a **Multi-Model AI Router** has been successfully integrated, enabling dynamic switching and smart routing between Google Gemini, Groq, OpenRouter, and DeepSeek.
+
+---
+
+## 🧠 Multi-Model AI Routing & Fallback System
+
+AuraWork implements a production-ready **AIRouter** that dynamically classifies and delegates queries to the best LLM provider using an object-oriented rule engine, while offering seamless fault tolerance.
+
+### 1. Intelligent Smart Routing
+The `MessageClassifier` uses a sequential, rule-based approach to route requests to the most optimal model:
+*   **Gmail, Calendar, Slack, Jira** integrations ➔ **Google Gemini** (Optimized for function/tool calling execution)
+*   **Programming & Scripting** tasks ➔ **DeepSeek** (Optimized for coding syntax and database design)
+*   **Creative Writing** prompts ➔ **OpenRouter** (Optimized for drafts, essays, and stories)
+*   **General Greetings & Casual Chat** ➔ **Groq** (Optimized for ultra-low latency conversational responses)
+*   **Long Reasoning** ➔ **Google Gemini**
+
+### 2. Automatic Fault Tolerance (Fallback Chain)
+If the preferred provider encounters a rate limit, network timeout, or exception, the router automatically fails over to the next available provider sequentially:
+$$\text{Gemini} \longrightarrow \text{Groq} \longrightarrow \text{OpenRouter} \longrightarrow \text{DeepSeek}$$
+This fallback occurs entirely inside the `AIRouter` invisible to the user and is tracked using structured success logs.
 
 ---
 
@@ -68,6 +90,14 @@ sequenceDiagram
 whatsapp-ai-agent/
 ├── agent/                   # Agent reasoning & execution loops
 │   └── planner.py           # Gemini agent planner & tool-calling loop
+├── ai/                      # Centralized Multi-Model Routing Engine
+│   ├── base.py              # Base interface for all models
+│   ├── engine.py            # Unified tool-calling execution loops
+│   ├── gemini_model.py      # Gemini Model Implementation
+│   ├── groq_model.py        # Groq Model Implementation
+│   ├── openrouter_model.py  # OpenRouter Model Implementation
+│   ├── deepseek_model.py    # DeepSeek Model Implementation
+│   └── router.py            # Message classifier & sequential fallback router
 ├── database/                # Database configuration & schemas
 │   ├── models.py            # SQLAlchemy Database Schemas
 │   └── postgres.py          # SQLite engine and session utilities
