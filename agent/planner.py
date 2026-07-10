@@ -86,6 +86,20 @@ class SyncCopilotAgent:
             return json.dumps({"error": "No unread emails found or user not authenticated. Tell the user to run /login."})
         return json.dumps(emails)
 
+    def read_email(self, message_id: str = None, email_index: int = None) -> str:
+        """Retrieves and reads the full text of a specific Gmail email.
+
+        Args:
+            message_id (str): The unique ID of the email. Optional if email_index is given.
+            email_index (int): The 1-based index of the email in the inbox list. Optional if message_id is given.
+
+        Returns:
+            str: JSON string containing details of the email or error.
+        """
+        logger.info(f"Tool Executed: read_email for {self.phone_number} (id: {message_id}, index: {email_index})")
+        email_data = gmail_tool.read_gmail_email(self.phone_number, message_id, email_index)
+        return json.dumps(email_data)
+
     def send_email(self, to_email: str, subject: str, body: str) -> str:
         logger.info(f"Tool Executed: send_email to {to_email}")
 
@@ -236,6 +250,7 @@ class SyncCopilotAgent:
             self.fetch_calendar_schedule,
             self.create_meeting,
             self.fetch_unread_emails,
+            self.read_email,
             self.send_email,
             self.draft_email,
             self.post_slack_message,
