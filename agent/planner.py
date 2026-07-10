@@ -198,6 +198,22 @@ class SyncCopilotAgent:
             return json.dumps({"status": "success", "message": f"Email {action} successfully."})
         return json.dumps({"status": "error", "message": f"Failed to {action[:-2]} email."})
 
+    def delete_email(self, message_id: str = None, email_index: int = None) -> str:
+        """Moves a specific email to the trash (deletes it).
+
+        Args:
+            message_id (str): The unique ID of the email. Optional if email_index is given.
+            email_index (int): The 1-based index of the email in the inbox list. Optional if message_id is given.
+
+        Returns:
+            str: JSON string indicating success or error.
+        """
+        logger.info(f"Tool Executed: delete_email for {self.phone_number} (id: {message_id}, index: {email_index})")
+        success = gmail_tool.delete_gmail_email(self.phone_number, message_id, email_index)
+        if success:
+            return json.dumps({"status": "success", "message": "Email moved to trash successfully."})
+        return json.dumps({"status": "error", "message": "Failed to delete email."})
+
     def send_email(self, to_email: str, subject: str, body: str) -> str:
         logger.info(f"Tool Executed: send_email to {to_email}")
 
@@ -355,6 +371,7 @@ class SyncCopilotAgent:
             self.mark_as_read,
             self.mark_as_unread,
             self.star_email,
+            self.delete_email,
             self.send_email,
             self.draft_email,
             self.post_slack_message,

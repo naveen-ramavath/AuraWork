@@ -612,3 +612,36 @@ def star_gmail_email(phone_number: str, message_id: str = None, email_index: int
     except Exception as e:
         logger.error(f"Error starring/unstarring Gmail message: {e}")
         return False
+
+
+def delete_gmail_email(phone_number: str, message_id: str = None, email_index: int = None) -> bool:
+    """Moves a specific email to the trash (deletes it)."""
+    service = get_gmail_service(phone_number)
+    if not service:
+        return False
+
+    try:
+        target_id = message_id
+        if not target_id and email_index is not None:
+            results = service.users().messages().list(
+                userId="me", maxResults=email_index
+            ).execute()
+            messages = results.get("messages", [])
+            if len(messages) >= email_index:
+                target_id = messages[email_index - 1]["id"]
+            else:
+                logger.error(f"Email at index {email_index} not found for deletion.")
+                return False
+
+        if not target_id:
+            logger.error("Must provide either message_id or email_index to delete.")
+            return False
+
+        service.users().messages().trash(
+            userId="me", id=target_id
+        ).execute()
+
+        return True
+    except Exception as e:
+        logger.error(f"Error trashing/deleting Gmail message: {e}")
+        return False
