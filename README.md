@@ -158,7 +158,7 @@ Ensure the following variables are configured in `.env`:
 *   `GEMINI_API_KEY` (from Google AI Studio)
 *   `ENCRYPTION_KEY` (Generate a secure key for credential encryption)
 
-### 3. Running the Server & Exposing the Webhook
+### 3. Running the Server  & Exposing the Webhook
 
 FastAPI runs locally on port 8000. WhatsApp requires a secure, public HTTPS URL. Expose it using a Cloudflare Tunnel:
 
