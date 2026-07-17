@@ -13,7 +13,7 @@
 
 ---
 
-## 🌟 About AuraWork
+## 🌟  About AuraWork
 
 **AuraWork** is an intelligent, agent-driven WhatsApp workspace companion. It acts as a single, mobile-first interface that aggregates and automates actions across your most-used productivity tools: **Slack**, **Jira**, **Gmail**, and **Google Calendar**. 
 
