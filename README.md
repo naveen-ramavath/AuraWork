@@ -1,4 +1,4 @@
-# 🤖  AuraWork — WhatsApp AI Work Companion
+# 🤖 AuraWork — WhatsApp AI Work Companion
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
