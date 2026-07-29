@@ -1,4 +1,4 @@
-from data base.postgres import SessionLocal
+from database.postgres import SessionLocal
 from database.models import User, UserAuth
 
 db = SessionLocal()
