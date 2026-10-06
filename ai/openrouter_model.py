@@ -1,4 +1,4 @@
-from openai import OpenAI
+from openai import OpenA
 
 from config import Config
 from ai.base import BaseAIModel
